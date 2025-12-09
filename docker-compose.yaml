@@ -1,0 +1,61 @@
+services:
+  # Agent API (FastAPI) - Website chatbot backend
+  agent-api:
+    build:
+      context: ./backend_agent_api
+      dockerfile: Dockerfile
+    container_name: agent-api
+    restart: unless-stopped
+    expose:
+      - "8001"
+    env_file:
+      - .env
+    environment:
+      - PORT=8001
+    networks:
+      - llm-solution-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # RAG Pipeline - Document processing voor embeddings
+  rag-pipeline:
+    build:
+      context: ./backend_rag_pipeline
+      dockerfile: Dockerfile
+    container_name: rag-pipeline
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - RAG_PIPELINE_TYPE=local
+      - RUN_MODE=continuous
+      - RAG_PIPELINE_ID=llmsolution-docs
+    volumes:
+      - ./backend_rag_pipeline/website_docs:/app/Local_Files/data
+    networks:
+      - llm-solution-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  llm-solution-network:
+    external: true
+    name: agentic-rag-twan_llm-solution-network
