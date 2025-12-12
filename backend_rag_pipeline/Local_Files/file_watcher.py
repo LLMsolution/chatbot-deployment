@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import mimetypes
 import time
@@ -90,13 +90,13 @@ class LocalFileWatcher:
         if self.state_manager:
             # Use database state management
             state = self.state_manager.load_state()
-            self.last_check_time = state.get('last_check_time') or datetime.strptime('1970-01-01T00:00:00.000Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+            self.last_check_time = state.get('last_check_time') or datetime(1970, 1, 1, tzinfo=timezone.utc)
             self.known_files = state.get('known_files', {})
             print(f"Loaded state from database - last check: {self.last_check_time}, known files: {len(self.known_files)}")
         else:
             # Use file-based state management (backward compatibility)
             state = load_state_from_config(self.config_path)
-            self.last_check_time = state.get('last_check_time') or datetime.strptime('1970-01-01T00:00:00.000Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+            self.last_check_time = state.get('last_check_time') or datetime(1970, 1, 1, tzinfo=timezone.utc)
             self.known_files = {}  # File-based config doesn't store known_files
             print(f"Loaded state from config file - last check: {self.last_check_time}")
         
@@ -213,9 +213,9 @@ class LocalFileWatcher:
                 file_path = os.path.join(root, file_name)
                 file_stat = os.stat(file_path)
                 
-                # Convert to datetime for comparison
-                mod_time = datetime.fromtimestamp(file_stat.st_mtime)
-                create_time = datetime.fromtimestamp(file_stat.st_ctime)
+                # Convert to datetime for comparison (timezone-aware to match database)
+                mod_time = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
+                create_time = datetime.fromtimestamp(file_stat.st_ctime, tz=timezone.utc)
                 
                 # Check if the file is new or modified
                 if file_path not in self.known_files or \
@@ -241,8 +241,8 @@ class LocalFileWatcher:
                     
                     changed_files.append(file_info)
         
-        # Update the last check time
-        self.last_check_time = datetime.now()
+        # Update the last check time (timezone-aware to match database)
+        self.last_check_time = datetime.now(timezone.utc)
         
         # Save the updated last check time to config
         self.save_last_check_time()
@@ -321,9 +321,9 @@ class LocalFileWatcher:
                         file_path = os.path.join(root, file_name)
                         file_stat = os.stat(file_path)
                         
-                        # Convert to datetime for comparison
-                        mod_time = datetime.fromtimestamp(file_stat.st_mtime)
-                        create_time = datetime.fromtimestamp(file_stat.st_ctime)
+                        # Convert to datetime for comparison (timezone-aware to match database)
+                        mod_time = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
+                        create_time = datetime.fromtimestamp(file_stat.st_ctime, tz=timezone.utc)
                         
                         # Track current files
                         current_files[file_path] = mod_time.isoformat()
@@ -364,8 +364,8 @@ class LocalFileWatcher:
                         print(f"Error processing file {file.get('name', 'Unknown')} during initialization: {e}")
                         stats['errors'] += 1
                 
-                # Update the last check time to now
-                self.last_check_time = datetime.now()
+                # Update the last check time to now (timezone-aware to match database)
+                self.last_check_time = datetime.now(timezone.utc)
                 
                 print(f"Processed {stats['files_processed']} files and {stats['files_deleted']} deletions during initialization.")
                 self.initialized = True
