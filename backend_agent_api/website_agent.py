@@ -1,8 +1,11 @@
 """Website chatbot agent with RAG, lead generation, and meeting scheduling tools."""
 
 from dataclasses import dataclass
+import os
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.models.openai import OpenAIModel
 from openai import AsyncOpenAI
 from supabase import AsyncClient
 
@@ -17,9 +20,18 @@ class WebsiteAgentDeps:
     embedding_model: str = "text-embedding-3-small"
 
 
+def get_website_model():
+    """Get the model configuration from environment variables."""
+    llm = os.getenv('LLM_CHOICE') or 'gpt-4o-mini'
+    base_url = os.getenv('LLM_BASE_URL') or 'https://api.openai.com/v1'
+    api_key = os.getenv('LLM_API_KEY') or 'ollama'
+
+    return OpenAIModel(llm, provider=OpenAIProvider(base_url=base_url, api_key=api_key))
+
+
 # Create the website agent
 website_agent = Agent(
-    'openai:gpt-4o-mini',
+    get_website_model(),
     deps_type=WebsiteAgentDeps,
     system_prompt=WEBSITE_CHATBOT_PROMPT,
 )
