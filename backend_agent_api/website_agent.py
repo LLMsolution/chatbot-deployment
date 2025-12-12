@@ -216,17 +216,16 @@ async def schedule_meeting(
             on_conflict='email'
         ).execute()
 
-        # 3. Trigger email via Edge Function (optional)
+        # 3. Trigger email via Edge Function (reuse send-contact-email)
         try:
             await ctx.deps.supabase.functions.invoke(
-                'send-meeting-request',
+                'send-contact-email',
                 invoke_options={
                     'body': {
                         'name': name,
                         'email': email,
                         'company': company,
-                        'preferred_time': preferred_time,
-                        'topic': topic
+                        'message': f"📅 GESPREK AANVRAAG\n\nOnderwerp: {topic}\nVoorkeurstijd: {preferred_time}"
                     }
                 }
             )
