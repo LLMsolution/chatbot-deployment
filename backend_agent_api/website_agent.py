@@ -58,12 +58,18 @@ async def retrieve_relevant_documents(
         Relevante content uit de documentatie
     """
     try:
+        print(f"[RAG TOOL] Called with query: {query}")
+        print(f"[RAG TOOL] Supabase client type: {type(ctx.deps.supabase)}")
+        print(f"[RAG TOOL] OpenAI client type: {type(ctx.deps.openai_client)}")
+        print(f"[RAG TOOL] Embedding model: {ctx.deps.embedding_model}")
+
         # Generate embedding for the query
         embedding_response = await ctx.deps.openai_client.embeddings.create(
             model=ctx.deps.embedding_model,
             input=query
         )
         query_embedding = embedding_response.data[0].embedding
+        print(f"[RAG TOOL] Embedding generated, length: {len(query_embedding)}")
 
         # Search for similar documents using the match_documents function
         result = await ctx.deps.supabase.rpc(
@@ -74,8 +80,10 @@ async def retrieve_relevant_documents(
                 'filter': {}
             }
         ).execute()
+        print(f"[RAG TOOL] RPC result: {len(result.data) if result.data else 0} documents")
 
         if not result.data:
+            print("[RAG TOOL] No documents returned from match_documents")
             return "Geen relevante informatie gevonden in de documentatie."
 
         # Format the results
@@ -83,15 +91,19 @@ async def retrieve_relevant_documents(
         for doc in result.data:
             content = doc.get('content', '')
             similarity = doc.get('similarity', 0)
+            print(f"[RAG TOOL] Doc similarity: {similarity:.3f}")
             if similarity > 0.7:  # Only include relevant results
                 documents.append(content)
 
         if not documents:
+            print("[RAG TOOL] No documents passed similarity threshold (0.7)")
             return "Geen relevante informatie gevonden in de documentatie."
 
+        print(f"[RAG TOOL] Returning {len(documents)} documents")
         return "\n\n---\n\n".join(documents)
 
     except Exception as e:
+        print(f"[RAG TOOL ERROR] {type(e).__name__}: {e}")
         return f"Er ging iets mis bij het zoeken in de documentatie: {str(e)}"
 
 
@@ -202,6 +214,8 @@ async def schedule_meeting(
         Bevestiging dat de meeting request is verstuurd
     """
     try:
+        print(f"[SCHEDULE_MEETING] Called: name={name}, email={email}, company={company}, time={preferred_time}, topic={topic}")
+
         # Validate email format (basic check)
         if not email or '@' not in email:
             return "Ongeldig email adres. Vraag de klant om een geldig email adres."
@@ -209,6 +223,7 @@ async def schedule_meeting(
         meeting_summary = f"Gesprek aanvraag - Onderwerp: {topic}. Voorkeurstijd: {preferred_time}"
 
         # 1. Insert into contact_submissions with meeting type
+        print("[SCHEDULE_MEETING] Inserting into contact_submissions...")
         await ctx.deps.supabase.from_('contact_submissions').insert({
             'name': name,
             'email': email,
@@ -216,8 +231,10 @@ async def schedule_meeting(
             'message': meeting_summary,
             'source': 'chatbot-meeting'
         }).execute()
+        print("[SCHEDULE_MEETING] contact_submissions insert successful")
 
         # 2. Upsert into clients
+        print("[SCHEDULE_MEETING] Upserting into clients...")
         await ctx.deps.supabase.from_('clients').upsert(
             {
                 'email': email,
@@ -227,6 +244,7 @@ async def schedule_meeting(
             },
             on_conflict='email'
         ).execute()
+        print("[SCHEDULE_MEETING] clients upsert successful")
 
         # 3. Trigger email via Edge Function (reuse send-contact-email)
         try:
@@ -256,4 +274,5 @@ We nemen zo snel mogelijk contact op met {name} via {email} om een moment in te 
 Je ontvangt binnen 24 uur een bevestiging met een concrete datum en tijd."""
 
     except Exception as e:
+        print(f"[SCHEDULE_MEETING ERROR] {type(e).__name__}: {e}")
         return f"Er ging iets mis bij het inplannen: {str(e)}. Probeer het opnieuw of neem direct contact op via info@llmsolution.nl"

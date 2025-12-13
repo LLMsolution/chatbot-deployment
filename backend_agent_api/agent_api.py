@@ -91,8 +91,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: Clean up resources
     if http_client:
         await http_client.aclose()
-    if async_supabase:
-        await async_supabase.aclose()
+    # Note: Supabase AsyncClient doesn't have aclose() method
 
 # Initialize FastAPI app
 app = FastAPI(lifespan=lifespan)
@@ -519,6 +518,11 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
     async def generate():
         full_response = ""
         try:
+            print(f"[DEBUG] Website chat request: {body.message[:100]}...")
+            print(f"[DEBUG] async_supabase initialized: {async_supabase is not None}")
+            print(f"[DEBUG] embedding_client initialized: {embedding_client is not None}")
+            print(f"[DEBUG] deps.supabase type: {type(deps.supabase)}")
+
             async with website_agent.run_stream(
                 body.message,
                 message_history=message_history,
@@ -527,6 +531,9 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
                 async for chunk in result.stream_text():
                     full_response = chunk  # stream_text gives cumulative text
                     yield json.dumps({'text': chunk}).encode('utf-8') + b'\n'
+
+            # Log tool usage after completion
+            print(f"[DEBUG] Agent run completed. Response length: {len(full_response)}")
 
             # Store assistant response and increment message count
             if session_id:
