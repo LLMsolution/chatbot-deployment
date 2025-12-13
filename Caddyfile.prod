@@ -85,9 +85,22 @@ bolt.llmsolution.nl {
 
 # Website Chatbot API - voor llmsolution.nl frontend op Vercel
 api.llmsolution.nl {
-    # CORS voor Vercel frontend
+    # CORS voor Vercel frontend (beide www en non-www)
     @cors_preflight method OPTIONS
+    @from_www header Origin "https://www.llmsolution.nl"
+    @from_nonwww header Origin "https://llmsolution.nl"
+
+    # Preflight voor www
     handle @cors_preflight {
+        @preflight_www header Origin "https://www.llmsolution.nl"
+        handle @preflight_www {
+            header Access-Control-Allow-Origin "https://www.llmsolution.nl"
+            header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
+            header Access-Control-Max-Age "86400"
+            respond "" 204
+        }
+        # Preflight voor non-www
         header Access-Control-Allow-Origin "https://llmsolution.nl"
         header Access-Control-Allow-Methods "GET, POST, OPTIONS"
         header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
@@ -95,10 +108,19 @@ api.llmsolution.nl {
         respond "" 204
     }
 
-    # CORS headers voor alle responses
-    header Access-Control-Allow-Origin "https://llmsolution.nl"
-    header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-    header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
+    # CORS headers voor www responses
+    handle @from_www {
+        header Access-Control-Allow-Origin "https://www.llmsolution.nl"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
+    }
+
+    # CORS headers voor non-www responses
+    handle @from_nonwww {
+        header Access-Control-Allow-Origin "https://llmsolution.nl"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
+    }
 
     # Security headers
     header {

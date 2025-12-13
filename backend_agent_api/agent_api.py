@@ -407,7 +407,7 @@ async def pydantic_agent(request: AgentRequest, user: Dict[str, Any] = Depends(v
 # ============================================================================
 
 # Configuration for website chat
-WEBSITE_CHAT_DAILY_LIMIT = int(os.getenv("WEBSITE_CHAT_DAILY_LIMIT", "20"))
+WEBSITE_CHAT_DAILY_LIMIT = int(os.getenv("WEBSITE_CHAT_DAILY_LIMIT", "25"))
 
 
 class WebsiteChatMessage(BaseModel):
@@ -433,9 +433,10 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
     """
     Website chatbot endpoint - PUBLIC (no authentication required).
 
-    - Rate limiting based on IP (20/day)
+    - Rate limiting based on IP (25/day)
     - Streaming response
     - No authentication required
+    - Stores messages in database
     """
     if not supabase or not embedding_client:
         raise HTTPException(
@@ -451,40 +452,57 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
 
     visitor_id = hash_ip(visitor_ip)
 
-    # Check rate limit
-    session_id = None
-    try:
-        limit_check = supabase.rpc(
-            'check_daily_chat_limit',
-            {
-                'p_visitor_id': visitor_id,
-                'p_daily_limit': WEBSITE_CHAT_DAILY_LIMIT
-            }
-        ).execute()
+    # Check if we have an existing session_id from the request
+    session_id = body.session_id
 
-        if limit_check.data and len(limit_check.data) > 0:
-            result = limit_check.data[0]
-            if not result.get('allowed', False):
-                return JSONResponse(
-                    status_code=429,
-                    content={
-                        'error': 'Daily chat limit reached',
-                        'message': 'Je hebt je dagelijkse chatberichten bereikt. Probeer morgen opnieuw of neem contact op via info@llmsolution.nl'
-                    }
-                )
-            session_id = result.get('session_id')
+    # Check rate limit (only create new session if we don't have one)
+    try:
+        if not session_id:
+            # No existing session, check rate limit and create new one
+            limit_check = supabase.rpc(
+                'check_daily_chat_limit',
+                {
+                    'p_visitor_id': visitor_id,
+                    'p_daily_limit': WEBSITE_CHAT_DAILY_LIMIT
+                }
+            ).execute()
+
+            if limit_check.data and len(limit_check.data) > 0:
+                result = limit_check.data[0]
+                if not result.get('allowed', False):
+                    return JSONResponse(
+                        status_code=429,
+                        content={
+                            'error': 'Daily chat limit reached',
+                            'message': 'Je hebt je dagelijkse chatberichten bereikt. Probeer morgen opnieuw of neem contact op via info@llmsolution.nl'
+                        }
+                    )
+                session_id = result.get('session_id')
 
     except Exception as e:
         # If rate limiting fails, continue anyway but log the error
         print(f"Rate limit check failed: {e}")
 
-    # Prepare message history for the agent
-    message_history = []
+    # Store user message in database
+    if session_id:
+        try:
+            supabase.table('website_chat_messages').insert({
+                'session_id': session_id,
+                'role': 'user',
+                'content': body.message
+            }).execute()
+        except Exception as e:
+            print(f"Failed to store user message: {e}")
+
+    # Prepare message history for the agent in Pydantic AI format
+    message_history: list[ModelMessage] = []
     for msg in body.history:
-        message_history.append({
-            'role': msg.role,
-            'content': msg.content
-        })
+        if msg.role == 'user':
+            # Create a ModelRequest for user messages
+            message_history.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+        elif msg.role == 'assistant':
+            # Create a ModelResponse for assistant messages
+            message_history.append(ModelResponse(parts=[TextPart(content=msg.content)]))
 
     # Create dependencies for website agent
     deps = WebsiteAgentDeps(
@@ -506,17 +524,26 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
                     full_response = chunk  # stream_text gives cumulative text
                     yield json.dumps({'text': chunk}).encode('utf-8') + b'\n'
 
-            # Increment message count after successful response
+            # Store assistant response and increment message count
             if session_id:
                 try:
+                    # Store assistant message
+                    supabase.table('website_chat_messages').insert({
+                        'session_id': session_id,
+                        'role': 'assistant',
+                        'content': full_response
+                    }).execute()
+
+                    # Increment message count
                     supabase.rpc(
                         'increment_message_count',
                         {'p_session_id': session_id}
                     ).execute()
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Failed to store assistant message: {e}")
 
-            yield json.dumps({'text': full_response, 'done': True}).encode('utf-8') + b'\n'
+            # Return session_id so frontend can reuse it
+            yield json.dumps({'text': full_response, 'done': True, 'session_id': session_id}).encode('utf-8') + b'\n'
 
         except Exception as e:
             yield json.dumps({'error': str(e)}).encode('utf-8') + b'\n'
@@ -578,13 +605,13 @@ async def website_chat_sync(request: Request, body: WebsiteChatRequest):
     except Exception as e:
         print(f"Rate limit check failed: {e}")
 
-    # Prepare message history
-    message_history = []
+    # Prepare message history in Pydantic AI format
+    message_history: list[ModelMessage] = []
     for msg in body.history:
-        message_history.append({
-            'role': msg.role,
-            'content': msg.content
-        })
+        if msg.role == 'user':
+            message_history.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+        elif msg.role == 'assistant':
+            message_history.append(ModelResponse(parts=[TextPart(content=msg.content)]))
 
     # Create dependencies
     deps = WebsiteAgentDeps(

@@ -522,11 +522,8 @@ docker-compose up -d
 # Stop containers
 docker-compose down
 
-# Bekijk logs
-docker-compose logs -f backend-api
-
-# Rebuild
-docker-compose build --no-cache && docker-compose up -d
+# Rebuild en start
+docker-compose up -d --build
 
 # Caddy reload
 docker exec caddy caddy reload --config /etc/caddy/Caddyfile
@@ -535,7 +532,71 @@ docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 docker restart caddy
 
 # Pull updates
-git pull origin main
+git pull origin master
+```
+
+---
+
+## Logs Bekijken
+
+```bash
+cd ~/chatbot-deployment
+
+# Container status
+docker-compose ps
+
+# Alle logs (volgen)
+docker-compose logs -f
+
+# Agent API logs (laatste 50 regels)
+docker-compose logs agent-api --tail=50
+
+# Agent API logs (volgen)
+docker-compose logs agent-api -f
+
+# RAG Pipeline logs (laatste 50 regels)
+docker-compose logs rag-pipeline --tail=50
+
+# RAG Pipeline logs (volgen)
+docker-compose logs rag-pipeline -f
+```
+
+---
+
+## Opnieuw Clonen (Fresh Install)
+
+Als je de hele map wilt verwijderen en opnieuw wilt clonen:
+
+```bash
+# 1. Stop alle containers
+cd ~/chatbot-deployment
+docker-compose down
+
+# 2. Backup .env bestand
+cp .env ~/backup-.env
+
+# 3. Ga naar home directory
+cd ~
+
+# 4. Verwijder oude map
+rm -rf chatbot-deployment
+
+# 5. Clone opnieuw
+git clone https://github.com/LLMsolution/chatbot-deployment.git
+
+# 6. Ga naar nieuwe map
+cd chatbot-deployment
+
+# 7. Restore .env bestand
+cp ~/backup-.env .env
+
+# 8. Rebuild en start
+docker-compose up -d --build
+
+# 9. Check status
+docker-compose ps
+docker-compose logs agent-api --tail=30
+docker-compose logs rag-pipeline --tail=30
 ```
 
 ---
