@@ -100,7 +100,7 @@ api.llmsolution.nl {
     }
 
     # Proxy naar agent-api (CORS handled by FastAPI)
-    reverse_proxy agent-api:8001 {
+    reverse_proxy 172.18.0.9:8001 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
@@ -119,4 +119,4 @@ api.llmsolution.nl {
             keepalive_idle_conns 10
         }
     }
-}
+

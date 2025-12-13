@@ -92,11 +92,11 @@ async def retrieve_relevant_documents(
             content = doc.get('content', '')
             similarity = doc.get('similarity', 0)
             print(f"[RAG TOOL] Doc similarity: {similarity:.3f}")
-            if similarity > 0.7:  # Only include relevant results
+            if similarity > 0.5:  # Only include relevant results
                 documents.append(content)
 
         if not documents:
-            print("[RAG TOOL] No documents passed similarity threshold (0.7)")
+            print("[RAG TOOL] No documents passed similarity threshold (0.5)")
             return "Geen relevante informatie gevonden in de documentatie."
 
         print(f"[RAG TOOL] Returning {len(documents)} documents")
