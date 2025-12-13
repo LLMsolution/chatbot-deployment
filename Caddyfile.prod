@@ -83,45 +83,8 @@ bolt.llmsolution.nl {
     reverse_proxy neo4j-graph:7687
 }
 
-# Website Chatbot API - voor llmsolution.nl frontend op Vercel
+# Website Chatbot API
 api.llmsolution.nl {
-    # CORS voor Vercel frontend (beide www en non-www)
-    @cors_preflight method OPTIONS
-    @from_www header Origin "https://www.llmsolution.nl"
-    @from_nonwww header Origin "https://llmsolution.nl"
-
-    # Preflight voor www
-    handle @cors_preflight {
-        @preflight_www header Origin "https://www.llmsolution.nl"
-        handle @preflight_www {
-            header Access-Control-Allow-Origin "https://www.llmsolution.nl"
-            header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-            header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
-            header Access-Control-Max-Age "86400"
-            respond "" 204
-        }
-        # Preflight voor non-www
-        header Access-Control-Allow-Origin "https://llmsolution.nl"
-        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
-        header Access-Control-Max-Age "86400"
-        respond "" 204
-    }
-
-    # CORS headers voor www responses
-    handle @from_www {
-        header Access-Control-Allow-Origin "https://www.llmsolution.nl"
-        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
-    }
-
-    # CORS headers voor non-www responses
-    handle @from_nonwww {
-        header Access-Control-Allow-Origin "https://llmsolution.nl"
-        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Visitor-IP"
-    }
-
     # Security headers
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -136,10 +99,24 @@ api.llmsolution.nl {
         max_size 1MB
     }
 
-    # Proxy naar agent-api
+    # Proxy naar agent-api (CORS handled by FastAPI)
     reverse_proxy agent-api:8001 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+
+        # Streaming support - flush immediately for SSE/streaming responses
+        flush_interval -1
+
+        # Health check to detect unhealthy backend
+        health_uri /health
+        health_interval 10s
+        health_timeout 5s
+
+        # Connection timeouts
+        transport http {
+            keepalive 30s
+            keepalive_idle_conns 10
+        }
     }
 }

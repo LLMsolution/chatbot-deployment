@@ -1,6 +1,7 @@
 from mem0 import Memory, AsyncMemory
 from openai import AsyncOpenAI
 from supabase import Client
+from supabase._async.client import AsyncClient as SupabaseAsyncClient
 import os
 
 def get_agent_clients():
@@ -112,5 +113,12 @@ def get_mem0_client():
 
 async def get_mem0_client_async():
     # Create and return the Memory client
-    config = get_mem0_config()    
+    config = get_mem0_config()
     return await AsyncMemory.from_config(config)
+
+
+async def get_async_supabase_client():
+    """Create and return an async Supabase client for website chatbot."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+    return await SupabaseAsyncClient.create(supabase_url, supabase_key)

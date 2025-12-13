@@ -42,7 +42,7 @@ from pydantic_ai.messages import (
 )
 
 from agent import agent, AgentDeps, get_model
-from clients import get_agent_clients, get_mem0_client_async
+from clients import get_agent_clients, get_mem0_client_async, get_async_supabase_client
 from website_agent import website_agent, WebsiteAgentDeps
 import hashlib
 
@@ -61,6 +61,7 @@ else:
 # Define clients as None initially
 embedding_client = None
 supabase = None
+async_supabase = None  # Async client for website chatbot
 http_client = None
 title_agent = None
 mem0_client = None
@@ -73,22 +74,25 @@ async def lifespan(app: FastAPI):
     
     Handles initialization and cleanup of resources.
     """
-    global embedding_client, supabase, http_client, title_agent, mem0_client, tracer
+    global embedding_client, supabase, async_supabase, http_client, title_agent, mem0_client, tracer
 
     # Initialize Langfuse tracer (returns None if not configured)
-    tracer = configure_langfuse()    
-    
+    tracer = configure_langfuse()
+
     # Startup: Initialize all clients
     embedding_client, supabase = get_agent_clients()
+    async_supabase = await get_async_supabase_client()  # Async client for website chatbot
     http_client = AsyncClient()
     title_agent = Agent(model=get_model())
     mem0_client = await get_mem0_client_async()
-    
+
     yield  # This is where the app runs
-    
+
     # Shutdown: Clean up resources
     if http_client:
         await http_client.aclose()
+    if async_supabase:
+        await async_supabase.aclose()
 
 # Initialize FastAPI app
 app = FastAPI(lifespan=lifespan)
@@ -504,9 +508,9 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
             # Create a ModelResponse for assistant messages
             message_history.append(ModelResponse(parts=[TextPart(content=msg.content)]))
 
-    # Create dependencies for website agent
+    # Create dependencies for website agent (uses async Supabase client)
     deps = WebsiteAgentDeps(
-        supabase=supabase,
+        supabase=async_supabase,
         openai_client=embedding_client,
         embedding_model=os.getenv('EMBEDDING_MODEL_CHOICE', 'text-embedding-3-small')
     )
@@ -613,9 +617,9 @@ async def website_chat_sync(request: Request, body: WebsiteChatRequest):
         elif msg.role == 'assistant':
             message_history.append(ModelResponse(parts=[TextPart(content=msg.content)]))
 
-    # Create dependencies
+    # Create dependencies (uses async Supabase client)
     deps = WebsiteAgentDeps(
-        supabase=supabase,
+        supabase=async_supabase,
         openai_client=embedding_client,
         embedding_model=os.getenv('EMBEDDING_MODEL_CHOICE', 'text-embedding-3-small')
     )
