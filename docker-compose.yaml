@@ -1,10 +1,10 @@
 services:
   # Agent API (FastAPI) - Website chatbot backend
-  agent-api:
+  chatbot-api:
     build:
       context: ./backend_agent_api
       dockerfile: Dockerfile
-    container_name: agent-api
+    container_name: chatbot-api
     restart: unless-stopped
     expose:
       - "8002"
@@ -30,11 +30,11 @@ services:
       start_period: 40s
 
   # RAG Pipeline - Document processing voor embeddings
-  rag-pipeline:
+  chatbot-rag-pipeline:
     build:
       context: ./backend_rag_pipeline
       dockerfile: Dockerfile
-    container_name: rag-pipeline
+    container_name: chatbot-rag-pipeline
     restart: unless-stopped
     env_file:
       - .env

@@ -212,7 +212,7 @@ docker-compose up -d
 docker-compose ps
 
 # Logs bekijken
-docker-compose logs -f backend-api
+docker-compose logs -f agent-api
 
 # Health check
 curl http://localhost:8001/health
