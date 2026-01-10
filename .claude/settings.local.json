@@ -8,5 +8,15 @@
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "archon",
+    "brave-search",
+    "firecrawl",
+    "playwright",
+    "shadcn",
+    "@magicuidesign/mcp",
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }
