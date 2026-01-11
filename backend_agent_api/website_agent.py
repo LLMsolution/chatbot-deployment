@@ -29,11 +29,12 @@ def get_website_model():
     return OpenAIModel(llm, provider=OpenAIProvider(base_url=base_url, api_key=api_key))
 
 
-# Create the website agent
+# Create the website agent with strict tool usage
 website_agent = Agent(
     get_website_model(),
     deps_type=WebsiteAgentDeps,
     system_prompt=WEBSITE_CHATBOT_PROMPT,
+    retries=1,  # Minimal retries to prevent hallucinations
 )
 
 

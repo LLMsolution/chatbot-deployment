@@ -30,12 +30,12 @@ RUN chown -R agent:agent /app && \
 # Switch to non-root user
 USER agent
 
-# Expose port
-EXPOSE 8001
+# Expose port (can be overridden by docker-compose)
+EXPOSE 8002
 
-# Health check
+# Health check (uses PORT environment variable, defaults to 8002)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8001/health', timeout=5)"
+    CMD python -c "import os, requests; port = os.getenv('PORT', '8002'); requests.get(f'http://localhost:{port}/health', timeout=5)"
 
-# Run the application
-CMD ["uvicorn", "agent_api:app", "--host", "0.0.0.0", "--port", "8001"]
+# Run the application using environment variable PORT (defaults to 8002)
+CMD sh -c "uvicorn agent_api:app --host 0.0.0.0 --port ${PORT:-8002}"
