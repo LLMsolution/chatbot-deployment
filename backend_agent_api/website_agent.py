@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import os
 
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.result import RunResult
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.models.openai import OpenAIModel
 from openai import AsyncOpenAI
@@ -30,50 +29,12 @@ def get_website_model():
     return OpenAIModel(llm, provider=OpenAIProvider(base_url=base_url, api_key=api_key))
 
 
-def validate_tool_usage(result: RunResult[str]) -> str:
-    """
-    Validate that the agent ALWAYS uses retrieve_relevant_documents before answering.
-    This is a critical security measure to prevent the agent from using its training data.
-    """
-    # Check if any tools were called
-    tool_was_called = False
-    retrieve_was_called = False
-
-    # Inspect all messages to find tool calls
-    for message in result.all_messages():
-        # Check if this message has tool calls
-        if hasattr(message, 'parts'):
-            for part in message.parts:
-                # Check if this part is a tool call
-                if hasattr(part, 'tool_name'):
-                    tool_was_called = True
-                    if part.tool_name == 'retrieve_relevant_documents':
-                        retrieve_was_called = True
-                        print(f"[VALIDATOR] ✅ retrieve_relevant_documents was called")
-
-    # If no retrieve tool was called, this is a CRITICAL violation
-    if not retrieve_was_called:
-        print(f"[VALIDATOR] ❌ CRITICAL: Agent answered without calling retrieve_relevant_documents!")
-        print(f"[VALIDATOR] Tools called: {tool_was_called}")
-        print(f"[VALIDATOR] Blocking response and forcing fallback...")
-
-        # Force the fallback response
-        return """Ik heb daar geen informatie over in onze documentatie. Ik kan alleen vragen beantwoorden over LLM Solution's AI-diensten en oplossingen.
-
-Heb je vragen over onze diensten, of wil je een gesprek inplannen met het team?"""
-
-    # If retrieve was called, return the original response
-    return result.data
-
-
-# Create the website agent with strict tool usage and validation
+# Create the website agent with strict tool usage
 website_agent = Agent(
     get_website_model(),
     deps_type=WebsiteAgentDeps,
     system_prompt=WEBSITE_CHATBOT_PROMPT,
     retries=1,  # Minimal retries to prevent hallucinations
-    result_type=str,
-    result_validators=[validate_tool_usage],  # CRITICAL: Enforce tool usage
 )
 
 
