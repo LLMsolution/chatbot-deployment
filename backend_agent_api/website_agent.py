@@ -85,7 +85,10 @@ async def retrieve_relevant_documents(
 
         if not result.data:
             print("[RAG TOOL] No documents returned from match_documents")
-            return "Geen relevante informatie gevonden in de documentatie."
+            return """[GEEN_DOCUMENTATIE]
+Je MOET dit exacte antwoord gebruiken zonder eigen kennis toe te voegen:
+"Ik heb daar geen informatie over in onze documentatie. Ik kan alleen vragen beantwoorden over LLM Solution's AI-diensten en oplossingen. Heb je vragen daarover, of wil je een gesprek inplannen met het team?"
+[/GEEN_DOCUMENTATIE]"""
 
         # Format the results
         documents = []
@@ -98,7 +101,10 @@ async def retrieve_relevant_documents(
 
         if not documents:
             print("[RAG TOOL] No documents passed similarity threshold (0.5)")
-            return "Geen relevante informatie gevonden in de documentatie."
+            return """[GEEN_DOCUMENTATIE]
+Je MOET dit exacte antwoord gebruiken zonder eigen kennis toe te voegen:
+"Ik heb daar geen informatie over in onze documentatie. Ik kan alleen vragen beantwoorden over LLM Solution's AI-diensten en oplossingen. Heb je vragen daarover, of wil je een gesprek inplannen met het team?"
+[/GEEN_DOCUMENTATIE]"""
 
         print(f"[RAG TOOL] Returning {len(documents)} documents")
         return "\n\n---\n\n".join(documents)
