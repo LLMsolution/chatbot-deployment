@@ -515,7 +515,7 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
         embedding_model=os.getenv('EMBEDDING_MODEL_CHOICE', 'text-embedding-3-small')
     )
 
-    # Streaming response generator
+    # Streaming response generator with PRE-VALIDATION
     async def generate():
         full_response = ""
         tool_calls_made = []
@@ -525,16 +525,18 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
             print(f"[DEBUG] embedding_client initialized: {embedding_client is not None}")
             print(f"[DEBUG] deps.supabase type: {type(deps.supabase)}")
 
+            # STEP 1: Buffer the entire response BEFORE sending to client
+            print("[VALIDATOR] Buffering response for validation...")
             async with website_agent.run_stream(
                 body.message,
                 message_history=message_history,
                 deps=deps
             ) as result:
+                # Collect all chunks WITHOUT sending to client yet
                 async for chunk in result.stream_text():
                     full_response = chunk  # stream_text gives cumulative text
-                    yield json.dumps({'text': chunk}).encode('utf-8') + b'\n'
 
-                # Extract tool calls from result after streaming completes
+                # Extract tool calls from result
                 if hasattr(result, 'all_messages'):
                     for msg in result.all_messages():
                         if hasattr(msg, 'parts'):
@@ -542,11 +544,10 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
                                 if hasattr(part, 'tool_name'):
                                     tool_calls_made.append(part.tool_name)
 
-            # Log tool usage after completion
             print(f"[DEBUG] Agent run completed. Response length: {len(full_response)}")
             print(f"[DEBUG] Tool calls made: {tool_calls_made}")
 
-            # VALIDATOR: Check if response follows RAG-only rules
+            # STEP 2: VALIDATE before sending to client
             is_valid, error_msg = ResponseValidator.validate_response(
                 response_text=full_response,
                 user_message=body.message,
@@ -554,11 +555,24 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
             )
 
             if not is_valid:
-                print(f"[VALIDATOR] Response blocked: {error_msg}")
-                # Replace response with safe fallback
+                print(f"[VALIDATOR] Response BLOCKED: {error_msg}")
+                # Replace with safe fallback
                 full_response = ResponseValidator.get_fallback_response(body.message)
-                # Stream the corrected response
-                yield json.dumps({'text': full_response, 'validator_override': True}).encode('utf-8') + b'\n'
+            else:
+                print(f"[VALIDATOR] Response validated successfully")
+
+            # STEP 3: Now stream the validated (or fallback) response to client
+            # Option A: Send entire validated response at once (fast, secure)
+            yield json.dumps({'text': full_response}).encode('utf-8') + b'\n'
+
+            # Option B (commented): Simulate chunk-by-chunk streaming for better UX
+            # import asyncio
+            # words = full_response.split(' ')
+            # accumulated = ""
+            # for i, word in enumerate(words):
+            #     accumulated += word + (' ' if i < len(words) - 1 else '')
+            #     yield json.dumps({'text': accumulated}).encode('utf-8') + b'\n'
+            #     await asyncio.sleep(0.02)  # Simulate typing effect
 
             # Store assistant response and increment message count
             if session_id:
