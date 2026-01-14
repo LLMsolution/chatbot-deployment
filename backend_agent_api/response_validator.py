@@ -51,7 +51,27 @@ class ResponseValidator:
         Returns:
             (is_valid, error_message) tuple
         """
-        # Check if this is an action request
+        # Check if action tools were called (schedule_meeting or submit_lead)
+        # These are ALWAYS valid, even without keywords in user message
+        # (user might be providing info in follow-up: "jesse lamm jesselamm@icloud.com...")
+        action_tools_called = any(
+            tool in tool_calls_made
+            for tool in ['schedule_meeting', 'submit_lead']
+        )
+
+        # If action tools were called, validate and allow
+        if action_tools_called:
+            # Still check for forbidden patterns (shouldn't happen with action tools)
+            response_lower = response_text.lower()
+            for pattern in ResponseValidator.FORBIDDEN_PATTERNS:
+                if re.search(pattern, response_lower):
+                    return False, (
+                        f"VALIDATOR BLOCKED: Algemene kennis gedetecteerd in response. "
+                        f"Pattern: {pattern}. De chatbot mag ALLEEN documentatie gebruiken."
+                    )
+            return True, None  # Action tool calls are always valid
+
+        # Check if this is an action request by keywords
         is_action_request = any(
             keyword in user_message.lower()
             for keyword in ResponseValidator.ACTION_KEYWORDS
