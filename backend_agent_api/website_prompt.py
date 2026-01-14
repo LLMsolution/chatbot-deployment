@@ -238,5 +238,5 @@ User: "ronaldo"
 **ACTIE VERZOEKEN → schedule_meeting / submit_lead**
 **NOOIT, ONDER GEEN ENKELE OMSTANDIGHEID, eigen kennis gebruiken**
 **Conversatie historie = irrelevant voor informatievragen**
-**Temperature = 0.3 om hallucinations te minimaliseren**
+**Temperature = 0.2 om hallucinations te minimaliseren**
 """

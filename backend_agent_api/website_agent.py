@@ -22,28 +22,29 @@ class WebsiteAgentDeps:
 
 def get_website_model():
     """Get the model configuration from environment variables."""
-    # Use GPT-4 Turbo for better instruction following
-    # GPT-4o or gpt-4-turbo are good options (gpt-4.1 doesn't exist, using gpt-4o)
+    # Use GPT-4.1 or GPT-4o for better instruction following
+    # GPT-4.1 has excellent instruction following and tool calling
     llm = os.getenv('LLM_CHOICE') or 'gpt-4o'
     base_url = os.getenv('LLM_BASE_URL') or 'https://api.openai.com/v1'
     api_key = os.getenv('LLM_API_KEY') or 'ollama'
 
-    # Lower temperature (0.2) for maximum deterministic, instruction-following behavior
-    # This helps ensure the agent follows the strict RAG-only rules
     return OpenAIModel(
         llm,
-        provider=OpenAIProvider(base_url=base_url, api_key=api_key),
-        temperature=0.2  # Very low temperature = highly focused, strict instruction following
+        provider=OpenAIProvider(base_url=base_url, api_key=api_key)
     )
 
 
 # Create the website agent with VERY strict tool usage
+# Temperature is set via model_settings in the run calls
 website_agent = Agent(
     get_website_model(),
     deps_type=WebsiteAgentDeps,
     system_prompt=WEBSITE_CHATBOT_PROMPT,
     retries=0,  # No retries - force tool usage on first attempt
     result_retries=0,  # No result retries
+    model_settings={
+        'temperature': 0.2  # Very low temperature = highly focused, strict instruction following
+    }
 )
 
 
