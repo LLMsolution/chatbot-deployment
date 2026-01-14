@@ -90,8 +90,8 @@ api.llmsolution.nl {
         max_size 1MB
     }
 
-    # Proxy naar agent-api (CORS handled by FastAPI)
-    reverse_proxy 172.18.0.9:8002 {
+    # Proxy naar chatbot-api (CORS handled by FastAPI)
+    reverse_proxy chatbot-api:8002 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}

@@ -44,6 +44,7 @@ from pydantic_ai.messages import (
 from agent import agent, AgentDeps, get_model
 from clients import get_agent_clients, get_mem0_client_async, get_async_supabase_client
 from website_agent import website_agent, WebsiteAgentDeps
+from response_validator import ResponseValidator
 import hashlib
 
 # Check if we're in production
@@ -517,6 +518,7 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
     # Streaming response generator
     async def generate():
         full_response = ""
+        tool_calls_made = []
         try:
             print(f"[DEBUG] Website chat request: {body.message[:100]}...")
             print(f"[DEBUG] async_supabase initialized: {async_supabase is not None}")
@@ -532,8 +534,31 @@ async def website_chat(request: Request, body: WebsiteChatRequest):
                     full_response = chunk  # stream_text gives cumulative text
                     yield json.dumps({'text': chunk}).encode('utf-8') + b'\n'
 
+                # Extract tool calls from result after streaming completes
+                if hasattr(result, 'all_messages'):
+                    for msg in result.all_messages():
+                        if hasattr(msg, 'parts'):
+                            for part in msg.parts:
+                                if hasattr(part, 'tool_name'):
+                                    tool_calls_made.append(part.tool_name)
+
             # Log tool usage after completion
             print(f"[DEBUG] Agent run completed. Response length: {len(full_response)}")
+            print(f"[DEBUG] Tool calls made: {tool_calls_made}")
+
+            # VALIDATOR: Check if response follows RAG-only rules
+            is_valid, error_msg = ResponseValidator.validate_response(
+                response_text=full_response,
+                user_message=body.message,
+                tool_calls_made=tool_calls_made
+            )
+
+            if not is_valid:
+                print(f"[VALIDATOR] Response blocked: {error_msg}")
+                # Replace response with safe fallback
+                full_response = ResponseValidator.get_fallback_response(body.message)
+                # Stream the corrected response
+                yield json.dumps({'text': full_response, 'validator_override': True}).encode('utf-8') + b'\n'
 
             # Store assistant response and increment message count
             if session_id:
@@ -639,6 +664,30 @@ async def website_chat_sync(request: Request, body: WebsiteChatRequest):
             deps=deps
         )
 
+        # Extract tool calls made
+        tool_calls_made = []
+        if hasattr(result, 'all_messages'):
+            for msg in result.all_messages():
+                if hasattr(msg, 'parts'):
+                    for part in msg.parts:
+                        if hasattr(part, 'tool_name'):
+                            tool_calls_made.append(part.tool_name)
+
+        print(f"[DEBUG SYNC] Tool calls made: {tool_calls_made}")
+
+        # VALIDATOR: Check if response follows RAG-only rules
+        response_text = result.data
+        is_valid, error_msg = ResponseValidator.validate_response(
+            response_text=response_text,
+            user_message=body.message,
+            tool_calls_made=tool_calls_made
+        )
+
+        if not is_valid:
+            print(f"[VALIDATOR SYNC] Response blocked: {error_msg}")
+            # Replace response with safe fallback
+            response_text = ResponseValidator.get_fallback_response(body.message)
+
         # Increment message count
         if session_id:
             try:
@@ -650,7 +699,7 @@ async def website_chat_sync(request: Request, body: WebsiteChatRequest):
                 pass
 
         return {
-            'response': result.data,
+            'response': response_text,
             'session_id': session_id
         }
 
